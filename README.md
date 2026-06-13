@@ -23,7 +23,7 @@ telegram-bot-proxy/
 ├── package.json
 ├── README.md
 └── wrangler.toml
-
+```
 ## 一键部署（推荐）
 
 ### 步骤 1：Fork 或创建仓库
