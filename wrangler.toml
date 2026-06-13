@@ -1,0 +1,14 @@
+name = "telegram-bot-proxy"
+main = "src/index.js"
+compatibility_date = "2026-06-13"
+
+# ============================================
+# 本文件为公开模板配置，不含任何敏感信息：
+# - 不写入 account_id（Cloudflare 自动识别）
+# - 不写入 KV namespace id（在 Dashboard 中绑定）
+# - 不写入任何密码或 Token
+# ============================================
+#
+# 一键部署后，请按页面提示在 Dashboard 绑定 KV：
+# Settings → Bindings → Add → KV Namespace
+# Variable name 必须填：TOKEN_KV
