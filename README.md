@@ -12,16 +12,17 @@
 - **边缘代理**：仅白名单 Token 可访问 Telegram API，全球低延迟
 
 ## 项目结构
+```text
 telegram-bot-proxy/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml          # GitHub Actions 自动部署（可选）
+│       └── deploy.yml
 ├── src/
-│   └── index.js                # Worker 入口：代理逻辑 + 管理面板 + API
-├── wrangler.toml               # Workers 基础配置（无敏感信息）
-├── package.json                # 项目依赖与脚本
-├── .gitignore                  # Git 忽略规则
-└── README.md                   # 项目文档
+│   └── index.js
+├── .gitignore
+├── package.json
+├── README.md
+└── wrangler.toml
 
 ## 一键部署（推荐）
 
