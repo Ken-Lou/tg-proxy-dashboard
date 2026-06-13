@@ -16,13 +16,21 @@
 telegram-bot-proxy/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml
+│       └── deploy.yml              # GitHub Actions 自动部署（可选）
 ├── src/
-│   └── index.js
-├── .gitignore
-├── package.json
-├── README.md
-└── wrangler.toml
+│   ├── index.js                    # 入口：请求路由分发
+│   ├── config.js                   # 配置：常量与默认值
+│   ├── utils.js                    # 工具：HTTP 响应、密码管理、字符串处理
+│   ├── proxy.js                    # 代理：Telegram API 转发与 Token 校验
+│   ├── api.js                      # 后端 API：Token CRUD、密码修改、Bot 验证
+│   └── ui/
+│       ├── setup-wizard.js         # 前端：KV 未绑定时的安装向导页面
+│       └── admin-panel.js          # 前端：管理面板 HTML + CSS + JS
+├── wrangler.toml                   # Workers 配置（无敏感信息）
+├── package.json                    # 项目依赖与脚本
+├── .gitignore                      # Git 忽略规则
+└── README.md                       # 项目文档
+
 ```
 ## 一键部署（推荐）
 
