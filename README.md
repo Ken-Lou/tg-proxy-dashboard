@@ -12,7 +12,6 @@
 - **边缘代理**：仅白名单 Token 可访问 Telegram API，全球低延迟
 
 ## 项目结构
-
 . ├── src/ │ └── index.js # Worker 源码（代理 + 管理面板 + API） ├── wrangler.toml # 仅含基础配置，无敏感信息 ├── package.json # 依赖 ├── .github/ │ └── workflows/ │ └── deploy.yml # 可选：GitHub Actions 自动部署 └── README.md
 
 
