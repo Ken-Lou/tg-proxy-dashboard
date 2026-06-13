@@ -64,7 +64,6 @@ async function handleAdminAPI(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  // 修改密码
   if (path === "/admin/api/password" && request.method === "POST") {
     const body = await request.json();
     const current = await getAdminPassword(env);
@@ -92,7 +91,7 @@ async function handleAdminAPI(request, env) {
       note: body.note || ""
     };
     await env.TOKEN_KV.put(TOKENS_KEY, JSON.stringify(data));
-    return jsonResponse({ success: true, token: maskToken(token) });
+    return jsonResponse({ success: true, token: token.slice(0, 6) + "***" + token.slice(-6) });
   }
 
   const tokenMatch = path.match(/^\/admin\/api\/tokens\/(.+?)(?:\/verify)?$/);
@@ -134,16 +133,7 @@ async function handleAdminAPI(request, env) {
   return jsonResponse({ error: "Not found" }, 404);
 }
 
-function maskToken(t) {
-  if (t.length <= 12) return t;
-  return t.slice(0, 6) + "***" + t.slice(-6);
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
-}
-
-// ============ 首次安装向导 ============
+// ============ 安装向导（KV 未绑定时） ============
 function getSetupWizardHtml() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -158,31 +148,33 @@ h1{font-size:1.25rem;margin-bottom:16px}
 code{background:#0f172a;padding:2px 8px;border-radius:4px;font-family:ui-monospace,Menlo,monospace;color:#38bdf8}
 ol{line-height:2.2;padding-left:20px}
 p{margin:12px 0}
-.highlight{color:#38bdf8;font-weight:600}
+.btn{display:inline-block;margin-top:16px;padding:10px 20px;background:#3b82f6;color:#fff;text-decoration:none;border-radius:8px;font-size:.9375rem;border:none;cursor:pointer}
+.btn:hover{opacity:.9}
+.center{text-align:center}
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>⚙️ 一键部署成功！还需最后一步</h1>
-  <p>本模板为公开仓库，<b>不含任何账号密码</b>。你需要在 Cloudflare Dashboard 中为 Worker 绑定一个 KV 存储。</p>
+  <h1>⚙️ 部署成功！还需最后一步</h1>
+  <p>本模板为公开仓库，<b>不含任何账号密码</b>。你需要在 Cloudflare Dashboard 中为 Worker 绑定 KV 存储。</p>
   <ol>
     <li>打开 <a href="https://dash.cloudflare.com/" target="_blank" style="color:#38bdf8">Cloudflare Dashboard</a></li>
-    <li>进入 <b>Workers & Pages</b>，点击本项目</li>
+    <li>进入 <b>Workers & Pages</b> → 点击本项目</li>
     <li>选择 <b>Settings</b> → <b>Bindings</b> → <b>Add</b> → <b>KV Namespace</b></li>
-    <li>Variable name 必须填写：<code class="highlight">TOKEN_KV</code></li>
-    <li>选择一个已有 KV，或点击 <b>Create a namespace</b> 新建一个</li>
+    <li>Variable name 必须填写：<code style="color:#38bdf8;font-weight:600">TOKEN_KV</code></li>
+    <li>选择一个已有 KV，或点击 <b>Create a namespace</b> 新建</li>
     <li>点击 <b>Deploy</b> 保存配置</li>
-    <li>返回本页面，按 <b>F5</b> 刷新即可进入管理面板</li>
   </ol>
-  <p style="margin-top:20px;color:#94a3b8;font-size:0.875rem;">
-    默认管理密码为 <code>admin123</code>，进入面板后请立即修改。
-  </p>
+  <p style="color:#94a3b8;font-size:0.875rem;">默认管理密码为 <code>admin123</code>，进入面板后请立即修改。</p>
+  <div class="center">
+    <button class="btn" onclick="location.reload()">🚀 我已绑定 KV，刷新进入面板</button>
+  </div>
 </div>
 </body>
 </html>`;
 }
 
-// ============ 管理面板 HTML ============
+// ============ 管理面板 HTML（localStorage 安全版本） ============
 const ADMIN_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -228,12 +220,14 @@ th{color:var(--muted);font-weight:500}
 .toast-error{background:var(--danger)}
 code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;align-items:center;justify-content:center}
+.error-box{background:var(--danger);color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.875rem}
 </style>
 </head>
 <body>
 <div id="loginOverlay" class="login-overlay">
   <div class="card" style="width:100%;max-width:360px">
     <h2 style="margin-bottom:1rem">管理面板登录</h2>
+    <div id="loginError" class="error-box hidden"></div>
     <div class="form-group">
       <label>访问密码</label>
       <input type="password" id="adminPassword" placeholder="默认 admin123" onkeydown="if(event.key==='Enter')doLogin()">
@@ -299,7 +293,27 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 </div>
 
 <script>
-var password = localStorage.getItem('admin_pw') || '';
+// 安全地读取 localStorage，隐私模式下不报错
+var password = '';
+try { password = localStorage.getItem('admin_pw') || ''; } catch(e) {}
+
+function savePw(pw) {
+  try { localStorage.setItem('admin_pw', pw); } catch(e) {}
+}
+
+function clearPw() {
+  try { localStorage.removeItem('admin_pw'); } catch(e) {}
+}
+
+function showLoginError(msg) {
+  var el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideLoginError() {
+  document.getElementById('loginError').classList.add('hidden');
+}
 
 function api(path, opts) {
   opts = opts || {};
@@ -312,7 +326,7 @@ function api(path, opts) {
     body: opts.body
   }).then(function(res) {
     if (res.status === 401) {
-      localStorage.removeItem('admin_pw');
+      clearPw();
       location.reload();
       throw new Error('Unauthorized');
     }
@@ -454,7 +468,7 @@ function doChangePw() {
     body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw })
   }).then(function(){
     password = newPw;
-    localStorage.setItem('admin_pw', password);
+    savePw(password);
     document.getElementById('oldPw').value = '';
     document.getElementById('newPw').value = '';
     document.getElementById('newPw2').value = '';
@@ -466,18 +480,40 @@ function doChangePw() {
 }
 
 function doLogin() {
-  password = document.getElementById('adminPassword').value.trim();
-  if (!password) return;
-  localStorage.setItem('admin_pw', password);
-  document.getElementById('loginOverlay').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  loadTokens();
+  hideLoginError();
+  var pw = document.getElementById('adminPassword').value.trim();
+  if (!pw) {
+    showLoginError('请输入密码');
+    return;
+  }
+  // 先保存密码，再试 API
+  password = pw;
+  savePw(password);
+  
+  // 测试一个简单请求验证密码
+  api('/admin/api/tokens').then(function(data){
+    // 成功：显示面板
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    renderTokens(data);
+  }).catch(function(e){
+    // 失败：恢复并提示
+    password = '';
+    clearPw();
+    showLoginError('密码错误或请求失败: ' + e.message);
+  });
 }
 
+// 页面加载：如有保存的密码自动尝试登录
 if (password) {
-  document.getElementById('loginOverlay').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  loadTokens();
+  api('/admin/api/tokens').then(function(data){
+    document.getElementById('loginOverlay').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    renderTokens(data);
+  }).catch(function(){
+    clearPw();
+    password = '';
+  });
 }
 </script>
 </body>
@@ -487,25 +523,36 @@ if (password) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname;
 
-    // KV 未绑定：返回安装向导
-    if (!env.TOKEN_KV) {
-      if (url.pathname === "/admin" || url.pathname === "/admin/") {
+    // 根路径：已绑定 KV 则 302 跳转到 /admin，未绑定则显示向导
+    if (path === "/" || path === "") {
+      if (!env.TOKEN_KV) {
         return new Response(getSetupWizardHtml(), {
           headers: { "Content-Type": "text/html;charset=UTF-8" }
         });
       }
-      return new Response("KV not bound. Please bind TOKEN_KV in Dashboard.", { status: 503 });
+      return Response.redirect(url.origin + "/admin", 302);
     }
 
-    if (url.pathname === "/admin" || url.pathname === "/admin/") {
+    if (path === "/admin" || path === "/admin/") {
+      if (!env.TOKEN_KV) {
+        return new Response(getSetupWizardHtml(), {
+          headers: { "Content-Type": "text/html;charset=UTF-8" }
+        });
+      }
       return new Response(ADMIN_HTML, {
         headers: { "Content-Type": "text/html;charset=UTF-8" }
       });
     }
 
-    if (url.pathname.startsWith("/admin/api/")) {
+    if (path.startsWith("/admin/api/")) {
+      if (!env.TOKEN_KV) return jsonResponse({ error: "KV not bound" }, 503);
       return handleAdminAPI(request, env);
+    }
+
+    if (!env.TOKEN_KV) {
+      return new Response("KV not bound. Please bind TOKEN_KV in Dashboard.", { status: 503 });
     }
 
     return handleTelegramProxy(request, env);
