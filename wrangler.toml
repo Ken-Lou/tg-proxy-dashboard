@@ -1,4 +1,4 @@
-name = "telegram-bot-proxy"
+name = "tg-proxy-dashboard"
 main = "src/index.js"
 compatibility_date = "2026-06-13"
 
